@@ -1,0 +1,10 @@
+/node_modules
+/docker
+.git
+.gitignore
+.dockerignore
+.env.example
+README.md
+/dist
+/build
+/coverage

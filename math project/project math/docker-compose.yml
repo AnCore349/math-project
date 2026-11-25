@@ -1,0 +1,83 @@
+services:
+  frontend:
+    image: projectmath-client:latest
+    build:
+      context: ./client/crypto-g
+      dockerfile: docker/cli/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "4000:80"
+    networks:
+      - app-network
+    depends_on:
+      - server
+
+  server:
+    build:
+      context: ./server/crypto-graph-serv
+      dockerfile: docker/serv/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "4100:7100"
+    environment:
+      PORT: 7100
+      DB_HOST: "mongodb://${DB_USER:-crypto_graph}:${DB_PASS:-crypto_graph_local}@mongodb:27017/${DB_NAME:-crypto_graph}?authSource=admin"
+      DB_NAME: ${DB_NAME:-crypto_graph}
+      DB_USER: ${DB_USER:-crypto_graph}
+      DB_PASS: ${DB_PASS:-crypto_graph_local}
+      JWT_SECRET: ${JWT_SECRET:-local-development-jwt-secret}
+      JWT_EXPIRESIN: ${JWT_EXPIRESIN:-3600}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local-development-refresh-secret}
+      JWT_REFRESH_EXPIRESIN: ${JWT_REFRESH_EXPIRESIN:-604800}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-http://localhost:4100/auth/google/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:4000}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    networks:
+      - app-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:7100/api-doc', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  mongodb:
+    image: mongo:5.0
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${DB_USER:-crypto_graph}
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASS:-crypto_graph_local}
+      MONGO_INITDB_DATABASE: ${DB_NAME:-crypto_graph}
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mongo", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+      start_period: 60s
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mongo-data:
